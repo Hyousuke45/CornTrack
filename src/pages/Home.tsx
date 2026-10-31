@@ -14,7 +14,7 @@ import { useAuth } from "@/auth/AuthContext";
 import { useBuyers, useExpenses, useIncomes, usePrices, useProfile } from "@/lib/data";
 import { formatDateShort, kg, peso } from "@/lib/format";
 import { categoryStyle } from "@/lib/constants";
-import { Card, EmptyState, SectionTitle, StatCard } from "@/components/ui";
+import { Card, EmptyState, QueryErrorNotice, SectionTitle, StatCard } from "@/components/ui";
 
 function greeting(): string {
   const hour = new Date().getHours();
@@ -27,8 +27,20 @@ function greeting(): string {
 export default function Home() {
   const { user } = useAuth();
   const { data: profile } = useProfile(user?.id);
-  const { data: expenses = [], isLoading: loadingExpenses } = useExpenses(user?.id);
-  const { data: incomes = [], isLoading: loadingIncomes } = useIncomes(user?.id);
+  const {
+    data: expenses = [],
+    isLoading: loadingExpenses,
+    isError: expensesFailed,
+    error: expensesError,
+    refetch: refetchExpenses,
+  } = useExpenses(user?.id);
+  const {
+    data: incomes = [],
+    isLoading: loadingIncomes,
+    isError: incomesFailed,
+    error: incomesError,
+    refetch: refetchIncomes,
+  } = useIncomes(user?.id);
   const { data: prices = [] } = usePrices();
   const { data: buyers = [] } = useBuyers();
 
@@ -72,6 +84,16 @@ export default function Home() {
         </h1>
         <p className="page-intro">Manage your corn farm finances.</p>
       </header>
+
+      {(expensesFailed || incomesFailed) && (
+        <QueryErrorNotice
+          error={expensesFailed ? expensesError : incomesError}
+          onRetry={() => {
+            refetchExpenses();
+            refetchIncomes();
+          }}
+        />
+      )}
 
       {/* Estimated Profit / Loss — updates as records are added (guide §3) */}
       <div className="profit-hero">

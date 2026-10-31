@@ -1,7 +1,48 @@
 import { useEffect, type FormEvent, type MouseEvent, type ReactNode } from "react";
-import { X } from "lucide-react";
+import { AlertTriangle, RefreshCw, X } from "lucide-react";
 
 /* --------------------------------- Layout ---------------------------------- */
+
+/**
+ * Visible error banner for failed database queries. Without it, a rejected
+ * query looks like an empty database (zeros everywhere) and the real problem
+ * stays hidden. Shows the Supabase error message plus a retry button.
+ */
+export function QueryErrorNotice({
+  error,
+  onRetry,
+}: {
+  error: unknown;
+  onRetry?: () => void;
+}) {
+  const message = error instanceof Error ? error.message : String(error ?? "Unknown error");
+  return (
+    <div
+      className="card mt-3 border border-[#f0c8b8] bg-[#fdf3ef] p-3 text-[12px] leading-relaxed text-[#8a3418]"
+      role="alert"
+      data-testid="query-error-notice"
+    >
+      <b className="flex items-center gap-1.5">
+        <AlertTriangle size={14} /> Could not load your data from Supabase
+      </b>
+      <p className="mt-1 break-words font-mono text-[11px] text-[#a44a2a]">{message}</p>
+      <p className="mt-1 text-[#8a3418]">
+        Your records are safe — this is a connection or permissions problem. Check your
+        .env values and that supabase/schema.sql ran completely.
+      </p>
+      {onRetry && (
+        <button
+          type="button"
+          className="btn-outline mt-2"
+          onClick={onRetry}
+          data-testid="button-query-retry"
+        >
+          <RefreshCw size={13} /> Try again
+        </button>
+      )}
+    </div>
+  );
+}
 
 export function PageHead({
   title,

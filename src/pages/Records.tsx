@@ -29,6 +29,7 @@ import {
   Card,
   EmptyState,
   Field,
+  QueryErrorNotice,
   SaveButton,
   SectionTitle,
   SelectField,
@@ -59,8 +60,20 @@ function categoryIcon(category: string) {
 export default function Records() {
   const { user } = useAuth();
   const { toast } = useToast();
-  const { data: expenses = [], isLoading: loadingExpenses } = useExpenses(user?.id);
-  const { data: incomes = [], isLoading: loadingIncomes } = useIncomes(user?.id);
+  const {
+    data: expenses = [],
+    isLoading: loadingExpenses,
+    isError: expensesFailed,
+    error: expensesError,
+    refetch: refetchExpenses,
+  } = useExpenses(user?.id);
+  const {
+    data: incomes = [],
+    isLoading: loadingIncomes,
+    isError: incomesFailed,
+    error: incomesError,
+    refetch: refetchIncomes,
+  } = useIncomes(user?.id);
 
   const insertExpense = useInsertRow<ExpenseInsert>("expenses");
   const updateExpense = useUpdateRow<Partial<Expense> & { id: string }>("expenses");
@@ -157,6 +170,16 @@ export default function Records() {
         <h1 className="page-title">Farm Records</h1>
         <p className="page-intro">Record costs and income — totals update automatically.</p>
       </header>
+
+      {(expensesFailed || incomesFailed) && (
+        <QueryErrorNotice
+          error={expensesFailed ? expensesError : incomesError}
+          onRetry={() => {
+            refetchExpenses();
+            refetchIncomes();
+          }}
+        />
+      )}
 
       <div className="grid grid-cols-3 gap-2.5">
         <StatCard label="Total Expenses" value={loading ? "…" : peso(totals.expenseTotal)} accent="red" />

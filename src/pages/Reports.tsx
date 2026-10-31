@@ -18,7 +18,7 @@ import { useExpenses, useIncomes } from "@/lib/data";
 import { CATEGORY_STYLE } from "@/lib/constants";
 import { monthKey, monthLabel, peso, pesoCompact } from "@/lib/format";
 import { useToast } from "@/components/Toast";
-import { Card, EmptyState, SectionTitle, StatCard } from "@/components/ui";
+import { Card, EmptyState, QueryErrorNotice, SectionTitle, StatCard } from "@/components/ui";
 
 const MONTHS_BACK = 6;
 
@@ -26,8 +26,20 @@ const MONTHS_BACK = 6;
 export default function Reports() {
   const { user } = useAuth();
   const { toast } = useToast();
-  const { data: expenses = [], isLoading: loadingExpenses } = useExpenses(user?.id);
-  const { data: incomes = [], isLoading: loadingIncomes } = useIncomes(user?.id);
+  const {
+    data: expenses = [],
+    isLoading: loadingExpenses,
+    isError: expensesFailed,
+    error: expensesError,
+    refetch: refetchExpenses,
+  } = useExpenses(user?.id);
+  const {
+    data: incomes = [],
+    isLoading: loadingIncomes,
+    isError: incomesFailed,
+    error: incomesError,
+    refetch: refetchIncomes,
+  } = useIncomes(user?.id);
 
   const totals = useMemo(() => {
     const expenseTotal = expenses.reduce((sum, row) => sum + row.amount, 0);
@@ -111,6 +123,16 @@ export default function Reports() {
           <Download size={14} /> CSV
         </button>
       </header>
+
+      {(expensesFailed || incomesFailed) && (
+        <QueryErrorNotice
+          error={expensesFailed ? expensesError : incomesError}
+          onRetry={() => {
+            refetchExpenses();
+            refetchIncomes();
+          }}
+        />
+      )}
 
       <div className="grid grid-cols-2 gap-3">
         <StatCard label="Total Expenses" value={loading ? "…" : peso(totals.expenseTotal)} accent="red" />
