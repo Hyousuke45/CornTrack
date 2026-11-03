@@ -40,11 +40,3 @@ export function requireSupabase(): SupabaseClient {
   }
   return supabase;
 }
-
-console.log("CornTrack Supabase Debug:", {
-  configured: isSupabaseConfigured,
-  urlExists: Boolean(supabaseUrl),
-  keyExists: Boolean(supabaseAnonKey),
-  url: supabaseUrl,
-  keyPrefix: supabaseAnonKey?.slice(0, 12),
-});

@@ -31,7 +31,7 @@ export default function Login() {
   return (
     <div className="auth-screen page-enter">
       <div className="auth-hero">
-        <img src="/favicon.svg" alt="CornTrack logo" className="auth-logo" />
+        <img src="/favicon.ico" alt="CornTrack logo" className="auth-logo" />
         <h1 className="auth-title">CornTrack</h1>
         <p className="auth-tagline">Plan your costs. Track your money. Understand your profit.</p>
       </div>

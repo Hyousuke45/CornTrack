@@ -8,3 +8,8 @@ interface ImportMetaEnv {
 interface ImportMeta {
   readonly env: ImportMetaEnv;
 }
+
+/** PayPal subscription SDK, injected by Subscribe.tsx when configured. */
+interface Window {
+  paypal?: unknown;
+}

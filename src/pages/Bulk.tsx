@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import {
+  Crosshair,
   Handshake,
   MapPin,
   Package,
@@ -12,10 +13,33 @@ import {
   Users,
 } from "lucide-react";
 import { useAuth } from "@/auth/AuthContext";
-import { useBuyers, useDeleteRow, useFarmerListings, useInsertRow, useUpdateRow } from "@/lib/data";
+import {
+  useBuyers,
+  useDeleteRow,
+  useFarmerListings,
+  useInsertRow,
+  useProfile,
+  useUpdateRow,
+} from "@/lib/data";
 import { BUYER_STATUSES, FARMER_LISTING_STATUSES } from "@/lib/constants";
-import { formatDate, kg, peso } from "@/lib/format";
-import type { Buyer, BuyerInsert, FarmerListing, FarmerListingInsert } from "@/lib/types";
+import { formatDate, kg, peso, todayInPhilippines } from "@/lib/format";
+import {
+  formatCoord,
+  getCurrentPosition,
+  haversineKm,
+  isValidCoord,
+  roadDistanceKm,
+  type LatLng,
+} from "@/lib/geo";
+import { isOnline } from "@/lib/offline";
+import type {
+  Buyer,
+  BuyerInsert,
+  ExpenseInsert,
+  FarmerListing,
+  FarmerListingInsert,
+  Profile,
+} from "@/lib/types";
 import { useToast } from "@/components/Toast";
 import {
   Badge,
@@ -34,28 +58,35 @@ import {
 
 type CompareRow = { buyer: Buyer; transport: number; deductions: number };
 
-/** CornBulk Connect (guide §7): farmers, buyers, transport estimates, comparison. */
+/** CornBulk Connect (guide §7): farmers, buyers, commute estimates, comparison. */
 export default function Bulk() {
   const { user } = useAuth();
   const { toast } = useToast();
+  const { data: profile } = useProfile(user?.id);
   const { data: farmers = [], isLoading: loadingFarmers } = useFarmerListings();
   const { data: buyers = [], isLoading: loadingBuyers } = useBuyers();
 
   const insertFarmer = useInsertRow<FarmerListingInsert>("farmer_listings");
-  const deleteFarmer = useDeleteRow("farmer_listings");
+  const deleteFarmer = useDeleteRow("farmer_listings", "farmer_listings");
   const insertBuyer = useInsertRow<BuyerInsert>("buyers");
   const updateBuyer = useUpdateRow<Partial<Buyer> & { id: string }>("buyers");
-  const deleteBuyer = useDeleteRow("buyers");
+  const deleteBuyer = useDeleteRow("buyers", "buyers");
 
   const [tab, setTab] = useState<"farmers" | "buyers">("farmers");
   const [viewFarmer, setViewFarmer] = useState<FarmerListing | null>(null);
   const [viewBuyer, setViewBuyer] = useState<Buyer | null>(null);
-  const [transportBuyer, setTransportBuyer] = useState<Buyer | null>(null);
+  const [commuteBuyer, setCommuteBuyer] = useState<Buyer | null>(null);
   const [farmerSheet, setFarmerSheet] = useState(false);
   const [buyerSheet, setBuyerSheet] = useState<{ open: boolean; editing: Buyer | null }>({
     open: false,
     editing: null,
   });
+  // GPS coordinates attached to the buyer listing being created/edited.
+  const [buyerCoords, setBuyerCoords] = useState<{ latitude: number | null; longitude: number | null }>({
+    latitude: null,
+    longitude: null,
+  });
+  const [locatingBuyer, setLocatingBuyer] = useState(false);
 
   // Group-selling calculator (guide §7, step 2A)
   const [groupPick, setGroupPick] = useState<Set<string>>(new Set());
@@ -123,6 +154,8 @@ export default function Bulk() {
       phone,
       email,
       location: formText(form, "location"),
+      latitude: isValidCoord(buyerCoords) ? buyerCoords.latitude : null,
+      longitude: isValidCoord(buyerCoords) ? buyerCoords.longitude : null,
       offered_price_per_kg: formNumber(form, "offered_price_per_kg"),
       quantity_kg: formNumber(form, "quantity_kg"),
       min_quantity_kg: formNumber(form, "min_quantity_kg"),
@@ -142,6 +175,16 @@ export default function Bulk() {
         setBuyerSheet({ open: false, editing: null });
       })
       .catch(fail);
+  };
+
+  /** Opens the buyer form with the editing row's coordinates preloaded. */
+  const openBuyerSheet = (editing: Buyer | null) => {
+    setBuyerCoords(
+      editing
+        ? { latitude: editing.latitude ?? null, longitude: editing.longitude ?? null }
+        : { latitude: null, longitude: null }
+    );
+    setBuyerSheet({ open: true, editing });
   };
 
   const bestRemaining = useMemo(() => {
@@ -283,7 +326,7 @@ export default function Bulk() {
         <>
           <button
             className="btn-primary mt-4 w-full"
-            onClick={() => setBuyerSheet({ open: true, editing: null })}
+            onClick={() => openBuyerSheet(null)}
             data-testid="button-add-buyer"
           >
             <Plus size={16} /> Share a buyer listing
@@ -311,8 +354,8 @@ export default function Bulk() {
                     <span className="text-right">
                       <b className="row-amount block">{peso(row.offered_price_per_kg, 2)}/kg</b>
                       <span className="mt-1 flex gap-1">
-                        <button className="row-edit" onClick={() => setTransportBuyer(row)} data-testid={`button-location-${row.id}`}>
-                          <MapPin size={12} className="mr-0.5 inline" /> Location
+                        <button className="row-edit" onClick={() => setCommuteBuyer(row)} data-testid={`button-commute-${row.id}`}>
+                          <MapPin size={12} className="mr-0.5 inline" /> Commute
                         </button>
                         <button className="row-edit" onClick={() => setViewBuyer(row)} data-testid={`button-offer-${row.id}`}>
                           View Offer
@@ -591,11 +634,11 @@ export default function Bulk() {
             <button
               className="btn-outline"
               onClick={() => {
-                setTransportBuyer(viewBuyer);
+                setCommuteBuyer(viewBuyer);
                 setViewBuyer(null);
               }}
             >
-              <MapPin size={13} /> Location &amp; transport
+              <MapPin size={13} /> Commute &amp; distance
             </button>
             <button
               className="btn-primary"
@@ -617,17 +660,27 @@ export default function Bulk() {
         </Sheet>
       )}
 
-      {/* -------------------------- Transport calculator (guide §7, step 3) -------------------------- */}
-      {transportBuyer && <TransportSheet buyer={transportBuyer} close={() => setTransportBuyer(null)} onCompare={(transport) => {
-        setCompareRows((current) =>
-          current.some((row) => row.buyer.id === transportBuyer.id)
-            ? current.map((row) => (row.buyer.id === transportBuyer.id ? { ...row, transport } : row))
-            : [...current, { buyer: transportBuyer, transport, deductions: 0 }]
-        );
-        setTab("buyers");
-        setTransportBuyer(null);
-        toast({ title: "Transport saved to comparison", description: `Estimated transport ${peso(transport)} for ${transportBuyer.buyer_name}.` });
-      }} />}
+      {/* --------------------- Commute calculator (guide §7, step 3) --------------------- */}
+      {commuteBuyer && (
+        <CommuteSheet
+          buyer={commuteBuyer}
+          profile={profile ?? null}
+          close={() => setCommuteBuyer(null)}
+          onCompare={(transport) => {
+            setCompareRows((current) =>
+              current.some((row) => row.buyer.id === commuteBuyer.id)
+                ? current.map((row) => (row.buyer.id === commuteBuyer.id ? { ...row, transport } : row))
+                : [...current, { buyer: commuteBuyer, transport, deductions: 0 }]
+            );
+            setTab("buyers");
+            setCommuteBuyer(null);
+            toast({
+              title: "Transport saved to comparison",
+              description: `Estimated transport ${peso(transport)} for ${commuteBuyer.buyer_name}.`,
+            });
+          }}
+        />
+      )}
 
       {/* ------------------------ Farmer listing form sheet ------------------------ */}
       {farmerSheet && (
@@ -747,6 +800,64 @@ export default function Bulk() {
             />
             <TextArea label="Notes" name="notes" placeholder="Quality and moisture requirements, hauling, weighing…" defaultValue={buyerSheet.editing?.notes ?? ""} />
             <div className="notice">Enter at least a phone number or email so farmers can follow up.</div>
+
+            {/* Optional GPS position — lets farmers compute commute distance to this buyer */}
+            <div className="rounded-2xl border border-[#e6e9e2] p-3">
+              <b className="text-[11.5px] text-[#3d5245]">Buyer GPS coordinates (optional)</b>
+              <p className="mt-1 text-[10.5px] leading-relaxed text-[#75816f]">
+                Helps farmers estimate the commute cost to this buyer. Only approximate coordinates
+                are needed — never an exact address.
+              </p>
+              <div className="mt-2 grid grid-cols-2 gap-3">
+                <Field
+                  label="Latitude"
+                  name="buyer_lat"
+                  type="number"
+                  step="any"
+                  inputMode="decimal"
+                  placeholder="e.g. 16.925500"
+                  value={buyerCoords.latitude === null ? "" : String(buyerCoords.latitude)}
+                  onChange={(value) => setBuyerCoords((c) => ({ ...c, latitude: value === "" ? null : Number(value) }))}
+                />
+                <Field
+                  label="Longitude"
+                  name="buyer_lng"
+                  type="number"
+                  step="any"
+                  inputMode="decimal"
+                  placeholder="e.g. 121.754700"
+                  value={buyerCoords.longitude === null ? "" : String(buyerCoords.longitude)}
+                  onChange={(value) => setBuyerCoords((c) => ({ ...c, longitude: value === "" ? null : Number(value) }))}
+                />
+              </div>
+              <button
+                type="button"
+                className="btn-outline mt-2 w-full"
+                onClick={async () => {
+                  setLocatingBuyer(true);
+                  try {
+                    setBuyerCoords(await getCurrentPosition());
+                  } catch (error) {
+                    toast({
+                      title: "Could not get the location",
+                      description: error instanceof Error ? error.message : "Please try again.",
+                      variant: "error",
+                    });
+                  } finally {
+                    setLocatingBuyer(false);
+                  }
+                }}
+                disabled={locatingBuyer}
+                data-testid="button-buyer-gps"
+              >
+                <Crosshair size={14} className={locatingBuyer ? "animate-spin" : ""} />
+                {locatingBuyer ? "Finding location…" : "Use my current location"}
+              </button>
+              <p className="mt-1.5 text-center text-[10px] text-[#98a394]">
+                {isValidCoord(buyerCoords) ? formatCoord(buyerCoords) : "No coordinates set"}
+              </p>
+            </div>
+
             <SaveButton
               label="Save buyer listing"
               pending={insertBuyer.isPending || updateBuyer.isPending}
@@ -759,37 +870,225 @@ export default function Bulk() {
   );
 }
 
-/* ------------------------------ Transport sheet ------------------------------ */
+/* ------------------------------- Commute sheet ------------------------------- */
 
-function TransportSheet({
+function CommuteSheet({
   buyer,
+  profile,
   close,
   onCompare,
 }: {
   buyer: Buyer;
+  profile: Profile | null;
   close: () => void;
   onCompare: (transport: number) => void;
 }) {
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const insertExpense = useInsertRow<ExpenseInsert>("expenses");
+
+  // My location: farm coordinates from the profile (editable inline).
+  const [myCoords, setMyCoords] = useState<{ latitude: number | null; longitude: number | null }>({
+    latitude: profile?.farm_latitude ?? null,
+    longitude: profile?.farm_longitude ?? null,
+  });
+  const [locating, setLocating] = useState(false);
+  // Buyer location: coordinates stored with the listing (editable inline).
+  const [buyerCoords, setBuyerCoords] = useState<{ latitude: number | null; longitude: number | null }>({
+    latitude: buyer.latitude ?? null,
+    longitude: buyer.longitude ?? null,
+  });
+
   const [mode, setMode] = useState<"own" | "hired">("own");
-  const [distanceKm, setDistanceKm] = useState("25");
+  const [roadFactor, setRoadFactor] = useState("1.35");
   const [fuelUse, setFuelUse] = useState("0.12");
   const [fuelPrice, setFuelPrice] = useState("60");
-  const [otherExpenses, setOtherExpenses] = useState("0");
+  const [ratePerKm, setRatePerKm] = useState("15");
   const [deliveryFee, setDeliveryFee] = useState("");
+  const [otherExpenses, setOtherExpenses] = useState("0");
 
-  const roundTrip = (Number(distanceKm) || 0) * 2;
+  const haveBoth = isValidCoord(myCoords) && isValidCoord(buyerCoords);
+  const oneWayKm = haveBoth ? roadDistanceKm(myCoords as LatLng, buyerCoords as LatLng, Number(roadFactor) || 1.35) : 0;
+  const roundTrip = oneWayKm * 2;
+  const straightKm = haveBoth ? haversineKm(myCoords as LatLng, buyerCoords as LatLng) : 0;
+
   const fuelCost = roundTrip * (Number(fuelUse) || 0) * (Number(fuelPrice) || 0);
+  const flatFee = Number(deliveryFee) || 0;
+  const hiredCost = flatFee > 0 ? flatFee : roundTrip * (Number(ratePerKm) || 0);
   const other = Number(otherExpenses) || 0;
-  const hiredFee = Number(deliveryFee) || 0;
-  const total = mode === "own" ? fuelCost + other : hiredFee + other;
+  const total = mode === "own" ? fuelCost + other : hiredCost + other;
+
+  const myLocationName = [profile?.municipality, profile?.province].filter(Boolean).join(", ") || "My farm";
+  const locateMe = async () => {
+    setLocating(true);
+    try {
+      setMyCoords(await getCurrentPosition());
+    } catch (error) {
+      toast({
+        title: "Could not get your location",
+        description: error instanceof Error ? error.message : "Please try again.",
+        variant: "error",
+      });
+    } finally {
+      setLocating(false);
+    }
+  };
+
+  /** Saves the estimate as a Transportation expense (offline-first). */
+  const saveAsExpense = () => {
+    if (!user) return;
+    const notes =
+      `Commute to ${buyer.buyer_name} \u00b7 ${myLocationName} \u2192 ${buyer.location || "buyer location"} \u00b7 ` +
+      `${oneWayKm.toFixed(1)} km one-way (${roundTrip.toFixed(1)} km round trip)\u00b7 ${mode === "own" ? "own vehicle" : flatFee > 0 ? "hired delivery" : "hired per-km rate"}`;
+    insertExpense.mutate(
+      {
+        user_id: user.id,
+        category: "Transportation",
+        amount: Math.round(total * 100) / 100,
+        expense_date: todayInPhilippines(),
+        notes,
+      },
+      {
+        onSuccess: () => {
+          toast({
+            title: "Commute expense saved",
+            description: isOnline()
+              ? "Recorded under Transportation in Farm Records."
+              : "Saved on this device \u2014 it will sync when you are back online.",
+          });
+          close();
+        },
+        onError: (error) =>
+          toast({
+            title: "Could not save the expense",
+            description: error instanceof Error ? error.message : "Please try again.",
+            variant: "error",
+          }),
+      }
+    );
+  };
 
   return (
-    <Sheet title={`Route to ${buyer.buyer_name}`} close={close}>
+    <Sheet title={`Commute to ${buyer.buyer_name}`} close={close}>
       <p className="text-[11.5px] leading-relaxed text-[#5c6b5e]">
-        Estimate the transportation cost before deciding — a higher price per kg can be erased by a
-        long trip.
+        See both locations, the distance between them, and what the trip will likely cost \u2014 then
+        count it as a farm expense with one tap.
       </p>
 
+      {/* The two locations */}
+      <div className="mt-3 route-map p-3">
+        <div className="route-line">
+          <span className="route-dot route-dot-a" />
+          <span className="route-km" data-testid="text-commute-distance">
+            {haveBoth ? `${oneWayKm.toFixed(1)} km` : "? km"}
+          </span>
+          <span className="route-dot route-dot-b" />
+        </div>
+        <div className="grid grid-cols-2 gap-2 text-center">
+          <div>
+            <b className="block text-[11px] text-[#1c2b21]">My farm</b>
+            <span className="block text-[10px] leading-snug text-[#75816f]">{myLocationName}</span>
+            <span className="mt-0.5 block font-mono text-[9px] text-[#98a394]" data-testid="text-my-coords">
+              {formatCoord(myCoords)}
+            </span>
+          </div>
+          <div>
+            <b className="block text-[11px] text-[#1c2b21]">{buyer.buyer_name}</b>
+            <span className="block text-[10px] leading-snug text-[#75816f]">{buyer.location || "Buyer location"}</span>
+            <span className="mt-0.5 block font-mono text-[9px] text-[#98a394]" data-testid="text-buyer-coords">
+              {formatCoord(buyerCoords)}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Inline coordinate entry when something is missing */}
+      {!isValidCoord(myCoords) && (
+        <div className="mt-3 rounded-2xl border border-[#f0dfa8] bg-[#fffbea] p-3">
+          <b className="text-[11px] text-[#8a6100]">Set your farm location</b>
+          <p className="mt-1 text-[10.5px] leading-relaxed text-[#8a6100]">
+            Capture your GPS position now, or save it permanently in Farm Profile.
+          </p>
+          <div className="mt-2 grid grid-cols-2 gap-2">
+            <Field
+              label="My latitude"
+              name="my_lat"
+              type="number"
+              step="any"
+              inputMode="decimal"
+              placeholder="17.148200"
+              value={myCoords.latitude === null ? "" : String(myCoords.latitude)}
+              onChange={(value) => setMyCoords((c) => ({ ...c, latitude: value === "" ? null : Number(value) }))}
+            />
+            <Field
+              label="My longitude"
+              name="my_lng"
+              type="number"
+              step="any"
+              inputMode="decimal"
+              placeholder="121.976300"
+              value={myCoords.longitude === null ? "" : String(myCoords.longitude)}
+              onChange={(value) => setMyCoords((c) => ({ ...c, longitude: value === "" ? null : Number(value) }))}
+            />
+          </div>
+          <button type="button" className="btn-outline mt-2 w-full" onClick={() => void locateMe()} disabled={locating} data-testid="button-commute-gps">
+            <Crosshair size={14} className={locating ? "animate-spin" : ""} /> {locating ? "Finding your location\u2026" : "Use my current location"}
+          </button>
+        </div>
+      )}
+      {!isValidCoord(buyerCoords) && (
+        <div className="mt-3 rounded-2xl border border-[#e6e9e2] p-3">
+          <b className="text-[11px] text-[#3d5245]">Set the buyer\u2019s coordinates</b>
+          <p className="mt-1 text-[10.5px] leading-relaxed text-[#75816f]">
+            This listing has no GPS position yet \u2014 enter the buyer\u2019s approximate coordinates to
+            compute the distance.
+          </p>
+          <div className="mt-2 grid grid-cols-2 gap-2">
+            <Field
+              label="Buyer latitude"
+              name="buyer_lat"
+              type="number"
+              step="any"
+              inputMode="decimal"
+              placeholder="16.925500"
+              value={buyerCoords.latitude === null ? "" : String(buyerCoords.latitude)}
+              onChange={(value) => setBuyerCoords((c) => ({ ...c, latitude: value === "" ? null : Number(value) }))}
+            />
+            <Field
+              label="Buyer longitude"
+              name="buyer_lng"
+              type="number"
+              step="any"
+              inputMode="decimal"
+              placeholder="121.754700"
+              value={buyerCoords.longitude === null ? "" : String(buyerCoords.longitude)}
+              onChange={(value) => setBuyerCoords((c) => ({ ...c, longitude: value === "" ? null : Number(value) }))}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Distance inputs */}
+      {haveBoth && (
+        <div className="mt-3 grid grid-cols-2 gap-3">
+          <Field
+            label="Road factor (\u00d7 straight line)"
+            name="road_factor"
+            type="number"
+            step="0.05"
+            min="1"
+            inputMode="decimal"
+            help={`Straight line: ${straightKm.toFixed(1)} km`}
+            value={roadFactor}
+            onChange={setRoadFactor}
+          />
+          <div className="flex items-end">
+            <TinyStat label="Round trip" value={`${roundTrip.toFixed(1)} km`} />
+          </div>
+        </div>
+      )}
+
+      {/* Cost model */}
       <div className="segmented mt-3">
         <button className={`segment ${mode === "own" ? "active" : ""}`} onClick={() => setMode("own")} type="button">
           Own vehicle
@@ -802,45 +1101,50 @@ function TransportSheet({
       {mode === "own" ? (
         <div className="mt-4 grid gap-4">
           <label className="block">
-            <span className="field-label">One-way distance (km)</span>
-            <input className="field" type="number" min="0" step="any" inputMode="decimal" value={distanceKm} onChange={(event) => setDistanceKm(event.target.value)} />
-            <span className="field-help">Round trip: {roundTrip} km</span>
-          </label>
-          <label className="block">
             <span className="field-label">Fuel use per km (liters)</span>
             <input className="field" type="number" min="0" step="0.01" inputMode="decimal" value={fuelUse} onChange={(event) => setFuelUse(event.target.value)} />
-            <span className="field-help">Pickup ≈ 0.12 L/km · cargo truck ≈ 0.20 L/km — adjust for your vehicle.</span>
+            <span className="field-help">Pickup \u2248 0.12 L/km \u00b7 cargo truck \u2248 0.20 L/km \u2014 adjust for your vehicle.</span>
           </label>
           <label className="block">
-            <span className="field-label">Fuel price (₱/liter)</span>
+            <span className="field-label">Fuel price (\u20b1/liter)</span>
             <input className="field" type="number" min="0" step="0.01" inputMode="decimal" value={fuelPrice} onChange={(event) => setFuelPrice(event.target.value)} />
           </label>
         </div>
       ) : (
-        <div className="mt-4">
+        <div className="mt-4 grid gap-4">
           <label className="block">
-            <span className="field-label">Quoted delivery fee (₱)</span>
+            <span className="field-label">Hired rate per km (\u20b1)</span>
+            <input className="field" type="number" min="0" step="0.01" inputMode="decimal" value={ratePerKm} onChange={(event) => setRatePerKm(event.target.value)} />
+            <span className="field-help">Tricycles and hired haulers commonly charge per km \u2014 adjust to your area\u2019s rate.</span>
+          </label>
+          <label className="block">
+            <span className="field-label">Quoted flat delivery fee (\u20b1, if any)</span>
             <input className="field" type="number" min="0" step="0.01" inputMode="decimal" placeholder="e.g. 1500" value={deliveryFee} onChange={(event) => setDeliveryFee(event.target.value)} />
+            <span className="field-help">Leave empty to use the per-km rate.</span>
           </label>
         </div>
       )}
 
       <label className="mt-4 block">
-        <span className="field-label">Other transport expenses (₱)</span>
-        <input className="field" type="number" min="0" step="0.01" inputMode="decimal" placeholder="Loading, tolls, snacks…" value={otherExpenses} onChange={(event) => setOtherExpenses(event.target.value)} />
+        <span className="field-label">Other transport expenses (\u20b1)</span>
+        <input className="field" type="number" min="0" step="0.01" inputMode="decimal" placeholder="Loading, tolls, snacks\u2026" value={otherExpenses} onChange={(event) => setOtherExpenses(event.target.value)} />
       </label>
 
       <div className="mt-4 rounded-2xl bg-[#175a31] p-4 text-[#f2f8f4]">
         <div className="eyebrow" style={{ color: "#cfe4d6" }}>
-          Estimated transportation cost
+          Estimated commute cost
         </div>
-        <div className="mt-1 text-[26px] font-extrabold" data-testid="text-transport-total">
+        <div className="mt-1 text-[26px] font-extrabold" data-testid="text-commute-total">
           {peso(total)}
         </div>
         <div className="mt-2 text-[10.5px] leading-relaxed text-[#cfe4d6]">
-          {mode === "own"
-            ? `${roundTrip} km round trip × ${Number(fuelUse) || 0} L/km × ${peso(Number(fuelPrice) || 0, 2)}/L${other > 0 ? ` + ${peso(other)} other expenses` : ""}`
-            : `Delivery fee ${peso(hiredFee)}${other > 0 ? ` + ${peso(other)} other expenses` : ""}`}
+          {haveBoth
+            ? mode === "own"
+              ? `${roundTrip.toFixed(1)} km round trip \u00d7 ${Number(fuelUse) || 0} L/km \u00d7 ${peso(Number(fuelPrice) || 0, 2)}/L${other > 0 ? ` + ${peso(other)} other expenses` : ""}`
+              : flatFee > 0
+                ? `Delivery fee ${peso(flatFee)}${other > 0 ? ` + ${peso(other)} other expenses` : ""}`
+                : `${roundTrip.toFixed(1)} km round trip \u00d7 ${peso(Number(ratePerKm) || 0, 2)}/km${other > 0 ? ` + ${peso(other)} other expenses` : ""}`
+            : "Set both locations above to compute the cost."}
         </div>
       </div>
       <p className="mt-2 text-[10px] leading-relaxed text-[#98a394]">
@@ -848,8 +1152,21 @@ function TransportSheet({
         fees can change the actual cost.
       </p>
 
-      <button className="btn-primary mt-4 w-full" onClick={() => onCompare(total)} data-testid="button-transport-compare">
-        <Truck size={15} /> Use in buyer comparison
+      <button
+        className="btn-primary mt-4 w-full"
+        onClick={saveAsExpense}
+        disabled={insertExpense.isPending || !haveBoth || total <= 0}
+        data-testid="button-save-commute-expense"
+      >
+        <Truck size={15} /> {insertExpense.isPending ? "Saving\u2026" : `Save as commute expense (${peso(total)})`}
+      </button>
+      <button
+        className="btn-outline mt-2 w-full"
+        onClick={() => onCompare(Math.round(total * 100) / 100)}
+        disabled={!haveBoth}
+        data-testid="button-transport-compare"
+      >
+        <Scale size={15} /> Use in buyer comparison
       </button>
     </Sheet>
   );

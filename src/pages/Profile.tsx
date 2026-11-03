@@ -1,10 +1,19 @@
 import { useEffect, useState } from "react";
-import { LogOut, Save, ShieldCheck } from "lucide-react";
+import { Crosshair, LogOut, MapPin, Save, ShieldCheck } from "lucide-react";
 import { useAuth } from "@/auth/AuthContext";
 import { useProfile, useSaveProfile } from "@/lib/data";
+import { formatCoord, getCurrentPosition, isValidCoord } from "@/lib/geo";
 import { initialsOf } from "@/lib/format";
 import { useToast } from "@/components/Toast";
 import { Card, Field, SectionTitle, formNumber, formText } from "@/components/ui";
+
+/** Reads a number from FormData that may stay null (coordinates). */
+function formNumberOrNull(form: FormData, name: string): number | null {
+  const raw = String(form.get(name) ?? "").trim();
+  if (raw === "") return null;
+  const value = Number(raw);
+  return Number.isFinite(value) ? value : null;
+}
 
 /** Farm profile & account (guide §8): edit your details, sign out. */
 export default function Profile() {
@@ -13,6 +22,11 @@ export default function Profile() {
   const { data: profile, isLoading } = useProfile(user?.id);
   const saveProfile = useSaveProfile();
   const [saved, setSaved] = useState(false);
+  const [coords, setCoords] = useState<{ latitude: number | null; longitude: number | null }>({
+    latitude: null,
+    longitude: null,
+  });
+  const [locating, setLocating] = useState(false);
 
   useEffect(() => {
     if (!saveProfile.isSuccess) return;
@@ -21,9 +35,37 @@ export default function Profile() {
     return () => window.clearTimeout(timer);
   }, [saveProfile.isSuccess, saveProfile.variables]);
 
+  // Load the farm's saved coordinates into the picker once the profile arrives.
+  useEffect(() => {
+    if (!profile) return;
+    setCoords({ latitude: profile.farm_latitude ?? null, longitude: profile.farm_longitude ?? null });
+  }, [profile]);
+
   if (!user) return null;
 
+  const locateFarm = async () => {
+    setLocating(true);
+    try {
+      const position = await getCurrentPosition();
+      setCoords(position);
+      toast({
+        title: "Location captured",
+        description: "Save your profile to use it for commute distance estimates.",
+      });
+    } catch (error) {
+      toast({
+        title: "Could not get your location",
+        description: error instanceof Error ? error.message : "Please try again.",
+        variant: "error",
+      });
+    } finally {
+      setLocating(false);
+    }
+  };
+
   const submit = (form: FormData) => {
+    const latitude = coords.latitude ?? formNumberOrNull(form, "farm_latitude");
+    const longitude = coords.longitude ?? formNumberOrNull(form, "farm_longitude");
     saveProfile.mutate(
       {
         id: user.id,
@@ -34,6 +76,8 @@ export default function Profile() {
         farm_name: formText(form, "farm_name"),
         farm_size_ha: formNumber(form, "farm_size_ha"),
         corn_variety: formText(form, "corn_variety"),
+        farm_latitude: latitude,
+        farm_longitude: longitude,
       },
       {
         onSuccess: () => toast({ title: "Farm profile saved" }),
@@ -74,6 +118,7 @@ export default function Profile() {
           <div className="loading-block">Loading profile…</div>
         ) : (
           <form
+            id="profile-form"
             className="grid gap-4"
             onSubmit={(event) => {
               event.preventDefault();
@@ -109,6 +154,60 @@ export default function Profile() {
             </div>
           </form>
         )}
+      </Card>
+
+      {/* Farm coordinates — powers commute distance estimates */}
+      <Card className="mt-4">
+        <SectionTitle>
+          <MapPin size={15} className="mr-1 inline" /> Farm location for commute estimates
+        </SectionTitle>
+        <p className="text-[11.5px] leading-relaxed text-[#5c6b5e]">
+          Save your farm&apos;s GPS position once and every buyer commute estimate can compute the
+          distance automatically. The coordinates are stored only in your private profile — never
+          shown to other farmers.
+        </p>
+        <div className="mt-3 grid grid-cols-2 gap-3">
+          <Field
+            label="Latitude"
+            name="farm_latitude"
+            type="number"
+            step="any"
+            inputMode="decimal"
+            placeholder="e.g. 17.148200"
+            value={coords.latitude === null ? "" : String(coords.latitude)}
+            onChange={(value) => setCoords((current) => ({ ...current, latitude: value === "" ? null : Number(value) }))}
+          />
+          <Field
+            label="Longitude"
+            name="farm_longitude"
+            type="number"
+            step="any"
+            inputMode="decimal"
+            placeholder="e.g. 121.976300"
+            value={coords.longitude === null ? "" : String(coords.longitude)}
+            onChange={(value) => setCoords((current) => ({ ...current, longitude: value === "" ? null : Number(value) }))}
+          />
+        </div>
+        <button
+          className="btn-outline mt-3 w-full"
+          onClick={() => void locateFarm()}
+          disabled={locating}
+          data-testid="button-use-gps"
+        >
+          <Crosshair size={15} className={locating ? "animate-spin" : ""} />
+          {locating ? "Finding your location…" : "Use my current location"}
+        </button>
+        <p className="mt-2 text-center text-[10.5px] text-[#98a394]" data-testid="text-farm-coords">
+          {isValidCoord(coords) ? formatCoord(coords) : "No coordinates set — tap the button above or type them in."}
+        </p>
+        <button
+          className="btn-primary mt-2 w-full"
+          type="submit"
+          form="profile-form"
+          data-testid="button-save-coords"
+        >
+          <Save size={15} /> Save profile with these coordinates
+        </button>
       </Card>
 
       <Card className="mt-4">

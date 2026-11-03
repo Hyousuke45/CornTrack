@@ -26,7 +26,7 @@ export default function Community() {
   const { data: profile } = useProfile(user?.id);
   const { data: posts = [], isLoading } = usePosts();
   const insertPost = useInsertRow<CommunityPostInsert>("community_posts");
-  const deletePost = useDeleteRow("community_posts");
+  const deletePost = useDeleteRow("community_posts", "community_posts");
   const [sheet, setSheet] = useState(false);
 
   const fail = (error: unknown) =>

@@ -1131,3 +1131,117 @@ select.field {
   place-items: center;
   flex: none;
 }
+
+/* ------------------------------ Sync banner ------------------------------- */
+
+.sync-banner {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  max-width: 680px;
+  margin: 10px auto 0;
+  padding: 7px 13px;
+  border-radius: 11px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.sync-banner svg {
+  flex: none;
+}
+
+.sync-offline {
+  background: #fff7e0;
+  color: #8a6100;
+  border: 1px solid #f0dfa8;
+}
+
+.sync-busy {
+  background: var(--green-50);
+  color: var(--green-700);
+  border: 1px solid #d4e8da;
+}
+
+.sync-warn {
+  background: #fdf3ef;
+  color: #a44a2a;
+  border: 1px solid #f0c8b8;
+}
+
+/* --------------------------- Unsynced row badge --------------------------- */
+
+.pending-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #8a6100;
+  background: #fff7e0;
+  border: 1px solid #f0dfa8;
+  border-radius: 999px;
+  padding: 1.5px 7px;
+  white-space: nowrap;
+}
+
+/* ------------------------------ Route card map ------------------------------ */
+
+.route-map {
+  border: 1px solid var(--card-border);
+  border-radius: 14px;
+  overflow: hidden;
+  background: linear-gradient(180deg, #f2f8f4, #ffffff);
+}
+
+.route-line {
+  height: 64px;
+  position: relative;
+  margin: 0 18px;
+}
+
+.route-line::before {
+  content: "";
+  position: absolute;
+  left: 6px;
+  right: 6px;
+  top: 50%;
+  border-top: 2px dashed #9dbca8;
+}
+
+.route-dot {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 13px;
+  height: 13px;
+  border-radius: 999px;
+  border: 3px solid #fff;
+  box-shadow: 0 1px 4px rgba(24, 40, 28, 0.35);
+}
+
+.route-dot-a {
+  left: 0;
+  background: var(--green-700);
+}
+
+.route-dot-b {
+  right: 0;
+  background: #e04f2f;
+}
+
+.route-km {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -58%);
+  background: #fff;
+  border: 1px solid var(--card-border);
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 800;
+  color: var(--text-strong);
+  padding: 3px 10px;
+  box-shadow: 0 1px 3px rgba(24, 40, 28, 0.12);
+}

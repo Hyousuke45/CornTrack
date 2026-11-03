@@ -54,7 +54,7 @@ export default function Planner() {
   const saveBudget = useSaveBudgetWithItems();
   const updateBudget = useUpdateBudgetWithItems();
   const patchBudget = useUpdateRow<Partial<Budget> & { id: string }>("budgets");
-  const deleteBudget = useDeleteRow("budgets");
+  const deleteBudget = useDeleteRow("budgets", `budgets:${user?.id ?? ""}`);
 
   const [sheet, setSheet] = useState<{ open: boolean; editing: Budget | null }>({
     open: false,
@@ -122,6 +122,7 @@ export default function Planner() {
       ? updateBudget.mutateAsync({
           budgetId: editing.id,
           budget: {
+            user_id: editing.user_id,
             season_name: state.season_name,
             farm_area_ha: state.farm_area_ha,
             planned_planting_date: state.planned_planting_date || null,
@@ -339,7 +340,7 @@ export default function Planner() {
               className="btn-outline"
               onClick={() =>
                 patchBudget.mutate(
-                  { id: selected.id, status: selected.status === "active" ? "archived" : "active" },
+                  { id: selected.id, user_id: selected.user_id, status: selected.status === "active" ? "archived" : "active" },
                   {
                     onSuccess: () =>
                       toast({

@@ -12,6 +12,9 @@ export type Profile = {
   farm_name: string;
   farm_size_ha: number;
   corn_variety: string;
+  /** GPS position of the farm — powers commute distance estimates. */
+  farm_latitude: number | null;
+  farm_longitude: number | null;
   created_at: string;
   updated_at: string;
 };
@@ -94,6 +97,9 @@ export type Buyer = {
   phone: string;
   email: string;
   location: string;
+  /** Optional GPS position of the buyer's trading post (commute estimates). */
+  latitude: number | null;
+  longitude: number | null;
   offered_price_per_kg: number;
   quantity_kg: number;
   min_quantity_kg: number;
@@ -130,6 +136,21 @@ export type CommunityPost = {
   created_at: string;
 };
 
+export type Subscription = {
+  id: string;
+  user_id: string;
+  plan: string; // "plus"
+  status: "active" | "canceled" | "past_due" | "incomplete";
+  price_php: number;
+  currency: string;
+  billing_interval: string; // "monthly"
+  paypal_subscription_id: string;
+  current_period_start: string;
+  current_period_end: string;
+  created_at: string;
+  updated_at: string;
+};
+
 /* ------------------------- Insert payload types ------------------------- */
 /* Rows are created without id / created_at — Supabase generates them. */
 
@@ -141,3 +162,4 @@ export type PriceAlertInsert = Omit<PriceAlert, "id" | "created_at">;
 export type BuyerInsert = Omit<Buyer, "id" | "created_at">;
 export type FarmerListingInsert = Omit<FarmerListing, "id" | "created_at">;
 export type CommunityPostInsert = Omit<CommunityPost, "id" | "created_at">;
+export type SubscriptionInsert = Omit<Subscription, "id" | "created_at" | "updated_at">;

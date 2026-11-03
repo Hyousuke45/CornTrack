@@ -52,9 +52,9 @@ export default function Prices() {
 
   const insertPrice = useInsertRow<ProductPriceInsert>("product_prices");
   const updatePrice = useUpdateRow<Partial<ProductPrice> & { id: string }>("product_prices");
-  const deletePrice = useDeleteRow("product_prices");
+  const deletePrice = useDeleteRow("product_prices", "product_prices");
   const insertAlert = useInsertRow<PriceAlertInsert>("price_alerts");
-  const deleteAlert = useDeleteRow("price_alerts");
+  const deleteAlert = useDeleteRow("price_alerts", `price_alerts:${user?.id ?? ""}`);
 
   const [category, setCategory] = useState<string>("All");
   const [location, setLocation] = useState<string>("All");

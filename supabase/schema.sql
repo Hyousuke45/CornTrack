@@ -5,15 +5,22 @@
 -- New query → paste → Run). It is idempotent: running it again recreates the
 -- tables from scratch (existing CornTrack data will be dropped).
 --
+-- ⚠ ALREADY HAVE DATA? Run supabase/migration-2026-11-01.sql instead — it adds
+--   the farm/buyer GPS columns and the subscriptions table WITHOUT dropping
+--   anything.
+--
 -- Design notes
 --   * Private tables (expenses, incomes, budgets, budget_items, price_alerts,
---     profiles) are locked to their owner by Row Level Security.
+--     profiles, subscriptions) are locked to their owner by Row Level Security.
 --   * Shared tables (product_prices, buyers, farmer_listings, community_posts)
 --     are readable by every signed-in farmer; writes are limited to your own
 --     rows. Farmer-submitted price reports are forced to is_verified = false —
 --     only the service role (admin) can mark a report verified.
 --   * The app never stores a password — authentication is handled by Supabase
 --     Auth (auth.users). A trigger copies the signup metadata into profiles.
+--   * Rows created OFFLINE get a client-generated UUID (the app's sync queue
+--     inserts them with that id when the connection returns), so ids are not
+--     assumed to come from the database.
 -- ============================================================================
 
 -- ---------------------------------------------------------------------------
@@ -32,6 +39,7 @@ drop table if exists public.budget_items;
 drop table if exists public.budgets;
 drop table if exists public.incomes;
 drop table if exists public.expenses;
+drop table if exists public.subscriptions;
 drop table if exists public.profiles;
 
 -- ---------------------------------------------------------------------------
@@ -46,9 +54,16 @@ create table public.profiles (
   farm_name     text not null default '',
   farm_size_ha  numeric(10, 2) not null default 0 check (farm_size_ha >= 0),
   corn_variety  text not null default '',
+  farm_latitude  numeric(9, 6),
+  farm_longitude numeric(9, 6),
   created_at    timestamptz not null default now(),
-  updated_at    timestamptz not null default now()
+  updated_at    timestamptz not null default now(),
+  constraint profiles_lat_range check (farm_latitude is null or (farm_latitude between -90 and 90)),
+  constraint profiles_lng_range check (farm_longitude is null or (farm_longitude between -180 and 180))
 );
+
+comment on column public.profiles.farm_latitude is 'Optional GPS latitude of the farm — powers buyer commute distance estimates. Private, never shown to other farmers.';
+comment on column public.profiles.farm_longitude is 'Optional GPS longitude of the farm — powers buyer commute distance estimates. Private, never shown to other farmers.';
 
 comment on table public.profiles is 'Farmer profile — private to each account.';
 
@@ -399,6 +414,8 @@ create table public.buyers (
   phone                text not null default '',
   email                text not null default '',
   location             text not null default '',
+  latitude             numeric(9, 6),
+  longitude            numeric(9, 6),
   offered_price_per_kg numeric(10, 2) not null default 0 check (offered_price_per_kg >= 0),
   quantity_kg          numeric(12, 2) not null default 0 check (quantity_kg >= 0),
   min_quantity_kg      numeric(12, 2) not null default 0 check (min_quantity_kg >= 0),
@@ -407,8 +424,12 @@ create table public.buyers (
   deductions_note      text not null default '',
   valid_until          date,
   notes                text not null default '',
-  created_at           timestamptz not null default now()
+  created_at           timestamptz not null default now(),
+  constraint buyers_lat_range check (latitude is null or (latitude between -90 and 90)),
+  constraint buyers_lng_range check (longitude is null or (longitude between -180 and 180))
 );
+
+comment on column public.buyers.latitude is 'Optional approximate GPS latitude of the buyer''s trading post — used for commute distance estimates.';
 
 comment on table public.buyers is 'Shared corn buyer listings — offers contributed by farmers.';
 
@@ -522,6 +543,54 @@ create policy "community_posts: delete own"
   using (auth.uid() = user_id);
 
 create index community_posts_created_idx on public.community_posts (created_at desc);
+
+-- ---------------------------------------------------------------------------
+-- 10. subscriptions — CornTrack Plus (₱29/month via PayPal placeholder)
+--     The app inserts a row when a subscription starts (PayPal approval or the
+--     placeholder's test activation) and flips status when canceled.
+-- ---------------------------------------------------------------------------
+create table public.subscriptions (
+  id                     uuid primary key default gen_random_uuid(),
+  user_id                uuid not null references auth.users (id) on delete cascade,
+  plan                   text not null default 'plus',
+  status                 text not null default 'active'
+                           check (status in ('active', 'canceled', 'past_due', 'incomplete')),
+  price_php              numeric(10, 2) not null default 29 check (price_php >= 0),
+  currency               text not null default 'PHP',
+  billing_interval       text not null default 'monthly',
+  paypal_subscription_id text not null default '',
+  current_period_start   timestamptz not null default now(),
+  current_period_end     timestamptz not null default now() + interval '30 days',
+  created_at             timestamptz not null default now(),
+  updated_at             timestamptz not null default now()
+);
+
+comment on table public.subscriptions is 'CornTrack Plus memberships (₱29/month) — private to each account. paypal_subscription_id is empty for placeholder test activations.';
+
+alter table public.subscriptions enable row level security;
+
+create policy "subscriptions: read own"
+  on public.subscriptions for select
+  to authenticated
+  using (auth.uid() = user_id);
+
+create policy "subscriptions: insert own"
+  on public.subscriptions for insert
+  to authenticated
+  with check (auth.uid() = user_id);
+
+create policy "subscriptions: update own"
+  on public.subscriptions for update
+  to authenticated
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
+
+create policy "subscriptions: delete own"
+  on public.subscriptions for delete
+  to authenticated
+  using (auth.uid() = user_id);
+
+create index subscriptions_user_idx on public.subscriptions (user_id, created_at desc);
 
 -- ---------------------------------------------------------------------------
 -- Done. No sample data is inserted on purpose — the app is designed for real

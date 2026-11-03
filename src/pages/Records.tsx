@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import {
   ArrowDownLeft,
   Bug,
+  CloudUpload,
   Coins,
   Fuel,
   HardHat,
@@ -23,6 +24,7 @@ import {
 } from "@/lib/data";
 import { EXPENSE_CATEGORIES, categoryStyle } from "@/lib/constants";
 import { formatDate, peso, todayInPhilippines } from "@/lib/format";
+import { isOnline, usePendingIds } from "@/lib/offline";
 import type { Expense, ExpenseInsert, Income, IncomeInsert } from "@/lib/types";
 import { useToast } from "@/components/Toast";
 import {
@@ -77,12 +79,14 @@ export default function Records() {
 
   const insertExpense = useInsertRow<ExpenseInsert>("expenses");
   const updateExpense = useUpdateRow<Partial<Expense> & { id: string }>("expenses");
-  const deleteExpense = useDeleteRow("expenses");
+  const deleteExpense = useDeleteRow("expenses", `expenses:${user?.id ?? ""}`);
   const insertIncome = useInsertRow<IncomeInsert>("incomes");
   const updateIncome = useUpdateRow<Partial<Income> & { id: string }>("incomes");
-  const deleteIncome = useDeleteRow("incomes");
+  const deleteIncome = useDeleteRow("incomes", `incomes:${user?.id ?? ""}`);
 
   const [tab, setTab] = useState<"expenses" | "income">("expenses");
+  const pendingExpenseIds = usePendingIds("expenses");
+  const pendingIncomeIds = usePendingIds("incomes");
   const [expenseSheet, setExpenseSheet] = useState<{ open: boolean; editing: Expense | null }>({
     open: false,
     editing: null,
@@ -120,7 +124,12 @@ export default function Records() {
       : insertExpense.mutateAsync(row);
     action
       .then(() => {
-        toast({ title: editing ? "Expense updated" : "Expense saved", description: "Your totals were recalculated." });
+        toast({
+          title: editing ? "Expense updated" : "Expense saved",
+          description: isOnline()
+            ? "Your totals were recalculated."
+            : "Saved on this device — it will sync when you are back online.",
+        });
         setExpenseSheet({ open: false, editing: null });
       })
       .catch(fail);
@@ -147,7 +156,12 @@ export default function Records() {
       : insertIncome.mutateAsync(row);
     action
       .then(() => {
-        toast({ title: editing ? "Income updated" : "Income saved", description: "Your totals were recalculated." });
+        toast({
+          title: editing ? "Income updated" : "Income saved",
+          description: isOnline()
+            ? "Your totals were recalculated."
+            : "Saved on this device — it will sync when you are back online.",
+        });
         setIncomeSheet({ open: false, editing: null });
       })
       .catch(fail);
@@ -241,7 +255,14 @@ export default function Records() {
                       <Icon size={17} />
                     </span>
                     <span className="min-w-0 flex-1">
-                      <span className="row-title">{row.category}</span>
+                      <span className="row-title">
+                        {row.category}
+                        {pendingExpenseIds.has(row.id) && (
+                          <span className="pending-badge ml-1.5" data-testid={`badge-pending-expense-${row.id}`}>
+                            <CloudUpload size={9} /> waiting to sync
+                          </span>
+                        )}
+                      </span>
                       <span className="row-sub block">
                         {formatDate(row.expense_date)}
                         {row.notes ? ` · ${row.notes}` : ""}
@@ -287,7 +308,14 @@ export default function Records() {
                   <ArrowDownLeft size={17} />
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="row-title">{row.buyer_name ? `Corn sold · ${row.buyer_name}` : "Corn sold"}</span>
+                  <span className="row-title">
+                    {row.buyer_name ? `Corn sold · ${row.buyer_name}` : "Corn sold"}
+                    {pendingIncomeIds.has(row.id) && (
+                      <span className="pending-badge ml-1.5" data-testid={`badge-pending-income-${row.id}`}>
+                        <CloudUpload size={9} /> waiting to sync
+                      </span>
+                    )}
+                  </span>
                   <span className="row-sub block">
                     {formatDate(row.selling_date)} · {row.quantity_kg.toLocaleString()} kg @{" "}
                     {peso(row.price_per_kg, 2)}/kg

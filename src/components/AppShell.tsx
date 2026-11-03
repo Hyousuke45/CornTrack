@@ -4,6 +4,7 @@ import { BarChart3, ClipboardList, Home, Menu } from "lucide-react";
 import { useAuth } from "@/auth/AuthContext";
 import { useProfile } from "@/lib/data";
 import { initialsOf } from "@/lib/format";
+import { SyncBanner } from "@/components/SyncBanner";
 
 /**
  * Bottom navigation tabs (mobile-first, per the reference design).
@@ -52,7 +53,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <header className="app-header">
         <div className="app-header-inner">
           <Link href="/" className="brand" aria-label="CornTrack home">
-            <img src="/favicon.svg" alt="" className="brand-logo" />
+            <img src="/favicon.ico" alt="" className="brand-logo" />
             <span>
               <span className="brand-name">CORNTRACK</span>
               <span className="brand-sub">{locationName}</span>
@@ -63,6 +64,8 @@ export function AppShell({ children }: { children: ReactNode }) {
           </Link>
         </div>
       </header>
+
+      <SyncBanner />
 
       <main className="app-main">{children}</main>
 
