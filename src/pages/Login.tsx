@@ -2,10 +2,11 @@ import { useState } from "react";
 import { Link, useLocation } from "wouter";
 import { AlertTriangle, Sprout } from "lucide-react";
 import { useAuth } from "@/auth/AuthContext";
+import { PasswordInput } from "@/components/ui";
 
 /**
  * Login screen (guide §1–2): branding, email + password sign-in,
- * and a link to account creation.
+ * a show-password toggle, a forgot-password link and a link to signup.
  */
 export default function Login() {
   const { signIn } = useAuth();
@@ -31,7 +32,7 @@ export default function Login() {
   return (
     <div className="auth-screen page-enter">
       <div className="auth-hero">
-        <img src="/favicon.ico" alt="CornTrack logo" className="auth-logo" />
+        <img src="/favicon.svg" alt="CornTrack logo" className="auth-logo" />
         <h1 className="auth-title">CornTrack</h1>
         <p className="auth-tagline">Plan your costs. Track your money. Understand your profit.</p>
       </div>
@@ -54,19 +55,22 @@ export default function Login() {
           />
         </label>
 
-        <label className="block">
-          <span className="field-label">Password</span>
-          <input
-            className="field"
-            type="password"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            autoComplete="current-password"
-            placeholder="Your password"
-            required
-            data-testid="input-login-password"
-          />
-        </label>
+        <PasswordInput
+          label="Password"
+          name="password"
+          placeholder="Your password"
+          autoComplete="current-password"
+          required
+          value={password}
+          onChange={setPassword}
+          testId="input-login-password"
+        />
+
+        <div className="text-right">
+          <Link href="/forgot-password" className="text-[11.5px] font-semibold text-[#1e6b3c] hover:underline" data-testid="link-forgot-password">
+            Forgot password?
+          </Link>
+        </div>
 
         {error && (
           <div className="auth-error" role="alert" data-testid="alert-login-error">

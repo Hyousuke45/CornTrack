@@ -9,6 +9,7 @@ export type Profile = {
   phone: string;
   province: string;
   municipality: string;
+  barangay: string;
   farm_name: string;
   farm_size_ha: number;
   corn_variety: string;

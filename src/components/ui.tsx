@@ -1,5 +1,5 @@
-import { useEffect, type FormEvent, type MouseEvent, type ReactNode } from "react";
-import { AlertTriangle, RefreshCw, X } from "lucide-react";
+import { useEffect, useState, type FormEvent, type MouseEvent, type ReactNode } from "react";
+import { AlertTriangle, Eye, EyeOff, RefreshCw, X } from "lucide-react";
 
 /* --------------------------------- Layout ---------------------------------- */
 
@@ -146,6 +146,68 @@ export function TinyStat({ label, value }: { label: string; value: string }) {
 }
 
 /* ---------------------------------- Forms ---------------------------------- */
+
+/**
+ * Password input with a show/hide toggle (client request: users must be able
+ * to see what they typed — small phone screens make typos common). Supports
+ * controlled and uncontrolled usage like Field.
+ */
+export function PasswordInput({
+  label,
+  name,
+  placeholder,
+  autoComplete,
+  required = false,
+  minLength,
+  value,
+  onChange,
+  testId,
+}: {
+  label: string;
+  name: string;
+  placeholder?: string;
+  autoComplete?: string;
+  required?: boolean;
+  minLength?: number;
+  /** Controlled mode. */
+  value?: string;
+  onChange?: (value: string) => void;
+  /** data-testid prefix; the toggle button gets `${testId}-toggle`. */
+  testId: string;
+}) {
+  const [show, setShow] = useState(false);
+  return (
+    <label className="block">
+      <span className="field-label">{label}</span>
+      <span className="relative block">
+        <input
+          className="field pr-11"
+          name={name}
+          type={show ? "text" : "password"}
+          autoComplete={autoComplete}
+          placeholder={placeholder}
+          required={required}
+          minLength={minLength}
+          defaultValue={value === undefined ? "" : undefined}
+          value={value}
+          onChange={onChange ? (event) => onChange(event.target.value) : undefined}
+          data-testid={testId}
+        />
+        <button
+          type="button"
+          onClick={() => setShow((current) => !current)}
+          aria-label={show ? "Hide password" : "Show password"}
+          aria-pressed={show}
+          title={show ? "Hide password" : "Show password"}
+          data-testid={`${testId}-toggle`}
+          className="absolute inset-y-0 right-0 flex w-10 items-center justify-center text-[#7d8a7f] transition-colors hover:text-[#1e6b3c]"
+        >
+          {show ? <EyeOff size={16} /> : <Eye size={16} />}
+        </button>
+      </span>
+    </label>
+  );
+}
 
 export function Field({
   label,

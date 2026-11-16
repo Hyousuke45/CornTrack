@@ -44,8 +44,8 @@ export function AppShell({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const { data: profile } = useProfile(user?.id);
   const locationName =
-    profile?.municipality || profile?.province
-      ? [profile.municipality, profile.province].filter(Boolean).join(", ")
+    profile?.barangay || profile?.municipality || profile?.province
+      ? [profile.barangay, profile.municipality, profile.province].filter(Boolean).join(", ")
       : "Set your farm location in Profile";
 
   return (
@@ -53,7 +53,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <header className="app-header">
         <div className="app-header-inner">
           <Link href="/" className="brand" aria-label="CornTrack home">
-            <img src="/favicon.ico" alt="" className="brand-logo" />
+            <img src="/favicon.svg" alt="" className="brand-logo" />
             <span>
               <span className="brand-name">CORNTRACK</span>
               <span className="brand-sub">{locationName}</span>

@@ -44,7 +44,7 @@ export default function Community() {
         title: formText(form, "title"),
         body: formText(form, "body"),
         author_name: profile?.full_name || user.email?.split("@")[0] || "A corn farmer",
-        location: [profile?.municipality, profile?.province].filter(Boolean).join(", "),
+        location: [profile?.barangay, profile?.municipality, profile?.province].filter(Boolean).join(", "),
         kind: formText(form, "kind") || "Tip",
       },
       {

@@ -9,6 +9,8 @@ import { startAutoSync, SYNCED_EVENT } from "@/lib/offline";
 import { SetupScreen } from "@/pages/Setup";
 import Login from "@/pages/Login";
 import Signup from "@/pages/Signup";
+import ForgotPassword from "@/pages/ForgotPassword";
+import ResetPassword from "@/pages/ResetPassword";
 import Home from "@/pages/Home";
 import Records from "@/pages/Records";
 import Planner from "@/pages/Planner";
@@ -37,7 +39,7 @@ function FullScreenLoader() {
   return (
     <div className="auth-screen">
       <div className="text-center">
-        <img src="/favicon.ico" alt="" className="auth-logo mx-auto" style={{ margin: "0 auto" }} />
+        <img src="/favicon.svg" alt="" className="auth-logo mx-auto" style={{ margin: "0 auto" }} />
         <div className="mt-4 flex items-center justify-center gap-2 text-[12.5px] text-[#75816f]">
           <span className="spinner" /> Opening CornTrack…
         </div>
@@ -57,6 +59,11 @@ function AppRoutes() {
       <Switch>
         <Route path="/signup" component={Signup} />
         <Route path="/login" component={Login} />
+        <Route path="/forgot-password" component={ForgotPassword} />
+        {/* The recovery link signs the farmer into a temporary session first,
+            so this page works both logged out (email link) and logged in
+            (change password from Profile). */}
+        <Route path="/reset-password" component={ResetPassword} />
         <Route path="*">
           <Redirect to="/login" />
         </Route>
@@ -77,6 +84,10 @@ function AppRoutes() {
         <Route path="/profile" component={Profile} />
         <Route path="/subscribe" component={Subscribe} />
         <Route path="/more" component={More} />
+        {/* Change-password entry for signed-in farmers (Profile → Change
+            password) and the target of the recovery link once Supabase has
+            exchanged its code for a session. */}
+        <Route path="/reset-password" component={ResetPassword} />
         <Route path="*" component={NotFound} />
       </Switch>
     </AppShell>

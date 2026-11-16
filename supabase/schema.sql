@@ -5,9 +5,9 @@
 -- New query → paste → Run). It is idempotent: running it again recreates the
 -- tables from scratch (existing CornTrack data will be dropped).
 --
--- ⚠ ALREADY HAVE DATA? Run supabase/migration-2026-11-01.sql instead — it adds
---   the farm/buyer GPS columns and the subscriptions table WITHOUT dropping
---   anything.
+-- ⚠ ALREADY HAVE DATA? Run supabase/migration-2026-11-01.sql and then
+--   supabase/migration-2026-11-16.sql — they add the farm/buyer GPS columns,
+--   the subscriptions table and the barangay column WITHOUT dropping anything.
 --
 -- Design notes
 --   * Private tables (expenses, incomes, budgets, budget_items, price_alerts,
@@ -51,6 +51,7 @@ create table public.profiles (
   phone         text not null default '',
   province      text not null default '',
   municipality  text not null default '',
+  barangay      text not null default '',
   farm_name     text not null default '',
   farm_size_ha  numeric(10, 2) not null default 0 check (farm_size_ha >= 0),
   corn_variety  text not null default '',
@@ -107,13 +108,14 @@ language plpgsql
 security definer set search_path = public
 as $$
 begin
-  insert into public.profiles (id, full_name, phone, province, municipality)
+  insert into public.profiles (id, full_name, phone, province, municipality, barangay)
   values (
     new.id,
     coalesce(new.raw_user_meta_data ->> 'full_name', ''),
     coalesce(new.raw_user_meta_data ->> 'phone', ''),
     coalesce(new.raw_user_meta_data ->> 'province', ''),
-    coalesce(new.raw_user_meta_data ->> 'municipality', '')
+    coalesce(new.raw_user_meta_data ->> 'municipality', ''),
+    coalesce(new.raw_user_meta_data ->> 'barangay', '')
   )
   on conflict (id) do nothing;
   return new;

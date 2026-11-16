@@ -747,7 +747,7 @@ export default function Bulk() {
               <Field label="Phone" name="phone" type="tel" defaultValue={buyerSheet.editing?.phone ?? ""} />
               <Field label="Email" name="email" type="email" defaultValue={buyerSheet.editing?.email ?? ""} />
             </div>
-            <Field label="Location" name="location" required defaultValue={buyerSheet.editing?.location ?? ""} placeholder="Trading post, municipality, province" />
+            <Field label="Location" name="location" required defaultValue={buyerSheet.editing?.location ?? ""} placeholder="Trading post, barangay, municipality" />
             <div className="grid grid-cols-2 gap-3">
               <Field
                 label="Offered price (₱/kg)"
@@ -918,7 +918,8 @@ function CommuteSheet({
   const other = Number(otherExpenses) || 0;
   const total = mode === "own" ? fuelCost + other : hiredCost + other;
 
-  const myLocationName = [profile?.municipality, profile?.province].filter(Boolean).join(", ") || "My farm";
+  const myLocationName =
+    [profile?.barangay, profile?.municipality, profile?.province].filter(Boolean).join(", ") || "My farm";
   const locateMe = async () => {
     setLocating(true);
     try {

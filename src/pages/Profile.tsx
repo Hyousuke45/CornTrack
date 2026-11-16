@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { Crosshair, LogOut, MapPin, Save, ShieldCheck } from "lucide-react";
+import { useLocation } from "wouter";
+import { Crosshair, KeyRound, LogOut, MapPin, Save, ShieldCheck } from "lucide-react";
 import { useAuth } from "@/auth/AuthContext";
 import { useProfile, useSaveProfile } from "@/lib/data";
 import { formatCoord, getCurrentPosition, isValidCoord } from "@/lib/geo";
@@ -19,6 +20,7 @@ function formNumberOrNull(form: FormData, name: string): number | null {
 export default function Profile() {
   const { user, signOut } = useAuth();
   const { toast } = useToast();
+  const [, navigate] = useLocation();
   const { data: profile, isLoading } = useProfile(user?.id);
   const saveProfile = useSaveProfile();
   const [saved, setSaved] = useState(false);
@@ -73,6 +75,7 @@ export default function Profile() {
         phone: formText(form, "phone"),
         province: formText(form, "province"),
         municipality: formText(form, "municipality"),
+        barangay: formText(form, "barangay"),
         farm_name: formText(form, "farm_name"),
         farm_size_ha: formNumber(form, "farm_size_ha"),
         corn_variety: formText(form, "corn_variety"),
@@ -140,6 +143,12 @@ export default function Profile() {
               />
               <Field label="Corn variety" name="corn_variety" defaultValue={profile?.corn_variety ?? ""} placeholder="e.g. Dekalb DK 9901" />
             </div>
+            <Field
+              label="Barangay"
+              name="barangay"
+              defaultValue={profile?.barangay ?? ""}
+              placeholder="e.g. San Andres"
+            />
             <div className="grid grid-cols-2 gap-3">
               <Field label="Municipality / city" name="municipality" defaultValue={profile?.municipality ?? ""} />
               <Field label="Province" name="province" defaultValue={profile?.province ?? ""} />
@@ -213,15 +222,18 @@ export default function Profile() {
       <Card className="mt-4">
         <SectionTitle>Account</SectionTitle>
         <div className="data-row text-xs">
-          <span className="muted">Signed in as</span>
+          <span className="muted">Email</span>
           <b>{user.email}</b>
-        </div>
-        <div className="data-row text-xs">
-          <span className="muted">Password changes</span>
-          <b>Use “Forgot password” on the Supabase login screen</b>
         </div>
         <button
           className="btn-outline mt-3 w-full"
+          onClick={() => navigate("/reset-password")}
+          data-testid="button-change-password"
+        >
+          <KeyRound size={15} /> Change password
+        </button>
+        <button
+          className="btn-outline mt-2 w-full"
           onClick={() => signOut()}
           data-testid="button-signout-profile"
         >

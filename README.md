@@ -18,7 +18,7 @@ kept on the device first and pushed to Supabase automatically when you reconnect
 
 | Feature | What it does |
 | --- | --- |
-| **Login / Sign up** | Email + password accounts via Supabase Auth. Each farmer's data is protected by Row Level Security. |
+| **Login / Sign up** | Email + password accounts via Supabase Auth. Passwords can be shown while typing, and a **Forgot password** flow emails a reset link. Each farmer's data is protected by Row Level Security. |
 | **Home** | Estimated profit/loss, quick totals, and the four main features. |
 | **Farm Expenses & Profit** | Record expenses by category and harvest income (kg, ₱/kg, deductions). Totals and estimated profit update automatically. |
 | **CornCost Planner** | Create planting budgets with planned amounts per category, compare **planned vs actual** spending, and see your **break-even price** per kg. |
@@ -29,6 +29,7 @@ kept on the device first and pushed to Supabase automatically when you reconnect
 | **Community** | Shared tips, announcements and questions between farmers. |
 | **CornTrack Plus** | Voluntary ₱29/month supporter membership via PayPal (placeholder until you connect your PayPal account). **Not a paywall — everything, offline mode included, is free.** |
 | **Works offline** | Every record is written to the device first (IndexedDB), shown immediately, and pushed to Supabase when online. A sync banner shows what is waiting; failed pushes can be retried or discarded. |
+| **Farm address** | Barangay, municipality and province are separate fields — in signup, in the profile, and in every location shown across the app (header, community posts, commute estimates). |
 
 ## 1. Set up the database (one time)
 
@@ -36,9 +37,10 @@ kept on the device first and pushed to Supabase automatically when you reconnect
 2. Open **SQL Editor → New query**.
 3. Pick the file that matches your situation:
    - **Fresh project** — paste all of [`supabase/schema.sql`](supabase/schema.sql) and click **Run**.
-   - **Already ran an earlier CornTrack schema** — paste all of
-     [`supabase/migration-2026-11-01.sql`](supabase/migration-2026-11-01.sql) instead. It adds the
-     new GPS columns and the `subscriptions` table **without dropping your data**.
+   - **Already ran an earlier CornTrack schema** — run each migration in order:
+     [`supabase/migration-2026-11-01.sql`](supabase/migration-2026-11-01.sql) (GPS columns +
+     `subscriptions` table), then [`supabase/migration-2026-11-16.sql`](supabase/migration-2026-11-16.sql)
+     (separate barangay column). Both keep your data intact.
 
 ## 2. Connect the app
 
@@ -50,6 +52,10 @@ kept on the device first and pushed to Supabase automatically when you reconnect
    ```
 
 2. Get both values from **Supabase → Project Settings → API** (Project URL + anon public key).
+3. For **forgot password** emails to work, add your deployed URL to the allowed redirect list:
+   **Supabase → Authentication → URL Configuration** → add `https://YOUR-DEPLOYED-URL/reset-password`
+   to **Redirect URLs** (for local testing also add `http://localhost:5173/reset-password`). The
+   recovery email lands the farmer on that page to choose a new password.
 
 ## 3. Run locally
 

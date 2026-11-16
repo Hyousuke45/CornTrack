@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link, useLocation } from "wouter";
 import { AlertTriangle, MailCheck } from "lucide-react";
 import { useAuth } from "@/auth/AuthContext";
+import { PasswordInput } from "@/components/ui";
 
 /**
  * Registration screen (guide §2): full name, email, mobile number, password
@@ -26,6 +27,7 @@ export default function Signup() {
       phone: String(form.get("phone") ?? "").trim(),
       province: String(form.get("province") ?? "").trim(),
       municipality: String(form.get("municipality") ?? "").trim(),
+      barangay: String(form.get("barangay") ?? "").trim(),
     };
     if (metadata.full_name.length < 2) {
       setError("Please enter your full name.");
@@ -68,7 +70,7 @@ export default function Signup() {
   return (
     <div className="auth-screen page-enter">
       <div className="auth-hero">
-        <img src="/favicon.ico" alt="CornTrack logo" className="auth-logo" />
+        <img src="/favicon.svg" alt="CornTrack logo" className="auth-logo" />
         <h1 className="auth-title">CornTrack</h1>
         <p className="auth-tagline">Create your account and start recording your farm finances.</p>
       </div>
@@ -92,21 +94,30 @@ export default function Signup() {
           <input className="field" name="phone" type="tel" placeholder="09xx xxx xxxx" data-testid="input-signup-phone" />
         </label>
 
-        <label className="block">
-          <span className="field-label">Password</span>
-          <input className="field" name="password" type="password" placeholder="Create a password (min. 6 characters)" required minLength={6} data-testid="input-signup-password" />
-        </label>
+        <PasswordInput
+          label="Password"
+          name="password"
+          placeholder="Create a password (min. 6 characters)"
+          autoComplete="new-password"
+          required
+          minLength={6}
+          testId="input-signup-password"
+        />
 
         <div className="grid grid-cols-2 gap-3">
           <label className="block">
-            <span className="field-label">Municipality / barangay</span>
-            <input className="field" name="municipality" placeholder="e.g. Ilagan" data-testid="input-signup-municipality" />
+            <span className="field-label">Barangay</span>
+            <input className="field" name="barangay" placeholder="e.g. San Andres" data-testid="input-signup-barangay" />
           </label>
           <label className="block">
-            <span className="field-label">Province</span>
-            <input className="field" name="province" placeholder="e.g. Isabela" data-testid="input-signup-province" />
+            <span className="field-label">Municipality / city</span>
+            <input className="field" name="municipality" placeholder="e.g. Ilagan" data-testid="input-signup-municipality" />
           </label>
         </div>
+        <label className="block">
+          <span className="field-label">Province</span>
+          <input className="field" name="province" placeholder="e.g. Isabela" data-testid="input-signup-province" />
+        </label>
 
         {error && (
           <div className="auth-error" role="alert" data-testid="alert-signup-error">
