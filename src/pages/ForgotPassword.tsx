@@ -32,7 +32,7 @@ export default function ForgotPassword() {
   return (
     <div className="auth-screen page-enter">
       <div className="auth-hero">
-        <img src="/favicon.svg" alt="CornTrack logo" className="auth-logo" />
+        <img src="/favicon.ico" alt="CornTrack logo" className="auth-logo" />
         <h1 className="auth-title">CornTrack</h1>
         <p className="auth-tagline">Reset your password in two steps.</p>
       </div>

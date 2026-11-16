@@ -53,7 +53,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <header className="app-header">
         <div className="app-header-inner">
           <Link href="/" className="brand" aria-label="CornTrack home">
-            <img src="/favicon.svg" alt="" className="brand-logo" />
+            <img src="/favicon.ico" alt="" className="brand-logo" />
             <span>
               <span className="brand-name">CORNTRACK</span>
               <span className="brand-sub">{locationName}</span>

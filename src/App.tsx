@@ -39,7 +39,7 @@ function FullScreenLoader() {
   return (
     <div className="auth-screen">
       <div className="text-center">
-        <img src="/favicon.svg" alt="" className="auth-logo mx-auto" style={{ margin: "0 auto" }} />
+        <img src="/favicon.ico" alt="" className="auth-logo mx-auto" style={{ margin: "0 auto" }} />
         <div className="mt-4 flex items-center justify-center gap-2 text-[12.5px] text-[#75816f]">
           <span className="spinner" /> Opening CornTrack…
         </div>

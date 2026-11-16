@@ -9,7 +9,7 @@ export function SetupScreen() {
   return (
     <div className="auth-screen page-enter">
       <div className="auth-card" style={{ maxWidth: 430 }}>
-        <img src="/favicon.svg" alt="" className="auth-logo mx-auto" style={{ margin: "0 auto" }} />
+        <img src="/favicon.ico" alt="" className="auth-logo mx-auto" style={{ margin: "0 auto" }} />
         <h1 className="auth-card-title" style={{ textAlign: "center" }}>CornTrack needs a database</h1>
         <p className="text-[12.5px] leading-relaxed text-[#5c6b5e]" style={{ textAlign: "center", margin: 0 }}>
           Supabase is not configured yet. Connect the app to your Supabase project in three steps:
